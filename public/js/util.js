@@ -72,11 +72,19 @@ export function countdown(item, today = todayISO()) {
 }
 
 // ---------- เสียงอ่านภาษาไทย (Web Speech API) ----------
-function thaiVoice() {
+const norm = (v) => (v.lang || '').toLowerCase().replace('_', '-');
+
+// หาเสียงตามภาษา: 'th' = ไทย, 'en' = อังกฤษ (ให้ en-US ก่อน แล้วค่อย en อื่นๆ)
+function voiceFor(lang = 'th') {
   if (!('speechSynthesis' in window)) return null;
   const voices = window.speechSynthesis.getVoices();
-  return voices.find((v) => (v.lang || '').toLowerCase().replace('_', '-').startsWith('th')) || null;
+  if (lang === 'en') {
+    return voices.find((v) => norm(v).startsWith('en-us')) || voices.find((v) => norm(v).startsWith('en')) || null;
+  }
+  return voices.find((v) => norm(v).startsWith('th')) || null;
 }
+
+const LANG_TAG = { th: 'th-TH', en: 'en-US' };
 
 if ('speechSynthesis' in window) {
   // บางเครื่องโหลดรายการเสียงช้า
@@ -84,13 +92,13 @@ if ('speechSynthesis' in window) {
   window.speechSynthesis.getVoices();
 }
 
-// คืนค่า true ถ้าเริ่มอ่านได้, false ถ้าเครื่องนี้ไม่มีเสียงไทย
-export function speak(text, rate = 0.75) {
-  const voice = thaiVoice();
+// คืนค่า true ถ้าเริ่มอ่านได้, false ถ้าเครื่องนี้ไม่มีเสียงภาษานั้น
+export function speak(text, lang = 'th', rate = 0.75) {
+  const voice = voiceFor(lang);
   if (!voice) return false;
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'th-TH';
+  u.lang = LANG_TAG[lang] || voice.lang;
   u.voice = voice;
   u.rate = rate;
   window.speechSynthesis.speak(u);
@@ -98,13 +106,13 @@ export function speak(text, rate = 0.75) {
 }
 
 // อ่านหลายบรรทัดต่อกัน (เช่น อาขยานทั้งบท)
-export function speakLines(lines, rate = 0.7) {
-  const voice = thaiVoice();
+export function speakLines(lines, lang = 'th', rate = 0.7) {
+  const voice = voiceFor(lang);
   if (!voice) return false;
   window.speechSynthesis.cancel();
   lines.forEach((line) => {
     const u = new SpeechSynthesisUtterance(line);
-    u.lang = 'th-TH';
+    u.lang = LANG_TAG[lang] || voice.lang;
     u.voice = voice;
     u.rate = rate;
     window.speechSynthesis.speak(u);

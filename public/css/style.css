@@ -68,7 +68,11 @@ button:disabled { cursor: default; }
   border-radius: var(--r);
   box-shadow: var(--sh);
 }
-.btn, .back, .tool, .seg, .seg-btn.active, .word-chip, .poem-line, .rel, .key, .style-tile, .swatch-btn, .mini-speak {
+.btn, .back, .tool, .seg, .seg-btn.active, .word-chip, .poem-line, .rel, .key, .style-tile, .swatch-btn, /* ภาษาอังกฤษ: ฟอนต์ที่ตัว a/g เหมือนที่เด็กหัดเขียน */
+.en { font-family: 'Andika', 'Kanit', system-ui, sans-serif; letter-spacing: 0.01em; }
+.word-chip .mean { display: block; font-size: 15px; line-height: 1.4; color: var(--muted); margin-top: 2px; }
+.answer .mean { font-family: var(--font); font-size: 18px; font-weight: 400; color: var(--muted); line-height: 1.4; }
+.mini-speak {
   border: var(--bw) solid var(--ink);
 }
 html[data-style='blob'] .btn, html[data-style='blob'] .back, html[data-style='blob'] .tool, html[data-style='blob'] .rel,

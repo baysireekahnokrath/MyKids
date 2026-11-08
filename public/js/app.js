@@ -1,4 +1,4 @@
-import { KIDS, SCHEDULE, PRACTICE, DICTATION, POEMS, FRACTION_WORKSHEETS } from './data/content.js';
+import { KIDS, SCHEDULE, PRACTICE, DICTATION, ENGLISH_DICTATION, POEMS, FRACTION_WORKSHEETS } from './data/content.js';
 import {
   getProgress, setProgress, todayISO, thaiDate, thaiDateRange, countdown,
   speak, speakLines, stopSpeaking, shuffle, toast,
@@ -267,10 +267,11 @@ function renderKid(kidId) {
 }
 
 function practiceStatus(kidId, p) {
-  if (p.type === 'dict') {
-    const sets = DICTATION[kidId] || [];
-    const done = sets.filter((s) => getProgress(`${kidId}.dict.${s.id}`)?.firstTry === s.words.length).length;
-    return `ถูกหมดทุกคำแล้ว ${done}/${sets.length} ครั้ง`;
+  if (p.type === 'dict' || p.type === 'edict') {
+    const data = p.type === 'dict' ? DICTATION : ENGLISH_DICTATION;
+    const sets = data[kidId] || [];
+    const done = sets.filter((s) => getProgress(`${kidId}.${p.type}.${s.id}`)?.firstTry === s.words.length).length;
+    return `ถูกหมดทุกคำแล้ว ${done}/${sets.length} ${p.type === 'dict' ? 'ครั้ง' : 'ชุด'}`;
   }
   if (p.type === 'poem') {
     const poems = POEMS[kidId] || [];
@@ -284,21 +285,46 @@ function practiceStatus(kidId, p) {
   return '';
 }
 
-// ---------- เขียนไทย (ฟังคำแล้วเขียน) ----------
-function renderDictList(kidId) {
+// ---------- เขียนไทย / Dictation อังกฤษ (ฟังคำแล้วเขียน) ----------
+const DICT_KINDS = {
+  dict: {
+    data: DICTATION, lang: 'th', crumb: 'เขียนไทย', title: '✍️ เขียนไทย ชุดที่ 1', label: (s) => `ครั้งที่ ${s.id}`,
+    lead: 'เลือกครั้งที่จะฝึก — ฟังคำแล้วเขียนลงในช่องเขียน จากนั้นกดดูคำตอบเพื่อตรวจ',
+    noVoice: 'เครื่องนี้ไม่มีเสียงภาษาไทย ให้พ่อแม่อ่านคำให้ แล้วกด “ดูคำตอบ” เพื่อตรวจ',
+    padTitle: 'เขียนคำที่ได้ยิน',
+  },
+  edict: {
+    data: ENGLISH_DICTATION, lang: 'en', crumb: 'Dictation', title: '🔤 Dictation อังกฤษ (ชุด 4–9)', label: (s) => `ชุดที่ ${s.id}`,
+    lead: 'ฟังคำภาษาอังกฤษแล้วสะกดเขียน — สอบวันศุกร์ที่ 13 พ.ย. กดดูคำตอบเพื่อตรวจการสะกด',
+    noVoice: 'เครื่องนี้ไม่มีเสียงภาษาอังกฤษ ให้พ่อแม่อ่านคำให้ แล้วกด “ดูคำตอบ” เพื่อตรวจ',
+    padTitle: 'เขียนคำที่ได้ยิน (สะกดให้ถูก)',
+  },
+};
+
+// คำเป็นข้อความล้วน (เขียนไทย) หรือ object {w, tts, pos, pron, th} (Dictation อังกฤษ)
+const wordText = (w) => (typeof w === 'string' ? w : w.w);
+const wordSay = (w) => (typeof w === 'string' ? w : (w.tts || w.w));
+const meaningHTML = (w) => (typeof w === 'string' ? '' : `<small class="mean">${esc(`${w.pos} ${w.th}`)}${w.pron ? ` · ${esc(w.pron)}` : ''}</small>`);
+const wordHTML = (w) => (typeof w === 'string' ? `<span class="w">${esc(w)}</span>` : `<span class="w en">${esc(w.w)}</span>`);
+
+function renderDictList(kidId, kind = 'dict') {
   const kid = KIDS[kidId];
-  const sets = DICTATION[kidId] || [];
+  const cfg = DICT_KINDS[kind];
+  const sets = cfg.data[kidId] || [];
   const items = sets.map((s) => {
-    const pr = getProgress(`${kidId}.dict.${s.id}`);
+    const pr = getProgress(`${kidId}.${kind}.${s.id}`);
     const cd = countdown({ date: s.date }, todayISO());
+    const when = kind === 'edict'
+      ? (cd.state === 'past' ? 'สอบผ่านไปแล้ว' : `สอบ ${thaiDate(s.date)} · ${cd.text}`)
+      : `${thaiDate(s.date)} · ${cd.state === 'past' ? 'ผ่านไปแล้ว' : cd.text}`;
     const status = pr
       ? `<span class="badge ${pr.firstTry === s.words.length ? 'badge-ok' : 'badge-mid'}">ถูกครั้งแรก ${pr.firstTry}/${pr.total}</span>`
       : '<span class="badge">ยังไม่ได้ฝึก</span>';
     return `
-      <a class="set-card" href="#/k/${kidId}/dict/${s.id}">
+      <a class="set-card" href="#/k/${kidId}/${kind}/${s.id}">
         <div class="set-num">${s.id}</div>
         <div class="set-main">
-          <h3>ครั้งที่ ${s.id} <small>${thaiDate(s.date)} · ${cd.state === 'past' ? 'ผ่านไปแล้ว' : cd.text}</small></h3>
+          <h3>${cfg.label(s)} <small>${when}</small></h3>
           <p>${esc(s.unit)} · ${s.words.length} คำ</p>
         </div>
         ${status}
@@ -307,21 +333,21 @@ function renderDictList(kidId) {
   mount(`
     <main class="wrap">
       ${topbar(`#/k/${kidId}`, kid.name)}
-      <h1 class="page-title">✍️ เขียนไทย ชุดที่ 1</h1>
-      <p class="lead">เลือกครั้งที่จะฝึก — ฟังคำแล้วเขียนลงในช่องเขียน จากนั้นกดดูคำตอบเพื่อตรวจ</p>
+      <h1 class="page-title">${cfg.title}</h1>
+      <p class="lead">${cfg.lead}</p>
       <div class="set-list">${items}</div>
     </main>`, kidId);
 }
 
-function renderDictSet(kidId, setId) {
-  const kid = KIDS[kidId];
-  const set = (DICTATION[kidId] || []).find((s) => String(s.id) === String(setId));
-  if (!set) { location.hash = `#/k/${kidId}/dict`; return; }
+function renderDictSet(kidId, setId, kind = 'dict') {
+  const cfg = DICT_KINDS[kind];
+  const set = (cfg.data[kidId] || []).find((s) => String(s.id) === String(setId));
+  if (!set) { location.hash = `#/k/${kidId}/${kind}`; return; }
 
   mount(`
     <main class="wrap">
-      ${topbar(`#/k/${kidId}/dict`, 'เขียนไทย')}
-      <h1 class="page-title">ครั้งที่ ${set.id} <small>${esc(set.unit)}</small></h1>
+      ${topbar(`#/k/${kidId}/${kind}`, cfg.crumb)}
+      <h1 class="page-title">${cfg.label(set)} <small>${esc(set.unit)}</small></h1>
       <div class="seg" role="tablist">
         <button type="button" role="tab" class="seg-btn active" data-mode="write" aria-selected="true">✍️ เขียนตามเสียง</button>
         <button type="button" role="tab" class="seg-btn" data-mode="study" aria-selected="false">👀 ทบทวนคำ</button>
@@ -337,14 +363,15 @@ function renderDictSet(kidId, setId) {
       t.classList.toggle('active', on);
       t.setAttribute('aria-selected', String(on));
     });
-    if (mode === 'write') startWrite(host, kidId, set);
-    else startStudy(host, set);
+    if (mode === 'write') startWrite(host, kidId, set, kind);
+    else startStudy(host, set, kind);
   };
   tabs.forEach((t) => t.addEventListener('click', () => setMode(t.dataset.mode)));
   setMode('write');
 }
 
-function startStudy(host, set) {
+function startStudy(host, set, kind = 'dict') {
+  const cfg = DICT_KINDS[kind];
   host.innerHTML = `
     <div class="row between">
       <p class="lead">อ่านและฟังคำให้คุ้น แล้วลองซ่อนคำดูว่าเขียนได้ไหม</p>
@@ -352,25 +379,26 @@ function startStudy(host, set) {
     </div>
     <ul class="word-grid">
       ${set.words.map((w, i) => `
-        <li><button type="button" class="word-chip" data-i="${i}"><span class="w">${esc(w)}</span></button>
-        <button type="button" class="mini-speak" data-say="${i}" aria-label="ฟังคำ ${esc(w)}">🔊</button></li>`).join('')}
+        <li><button type="button" class="word-chip" data-i="${i}">${wordHTML(w)}${meaningHTML(w)}</button>
+        <button type="button" class="mini-speak" data-say="${i}" aria-label="ฟังคำ ${esc(wordText(w))}">🔊</button></li>`).join('')}
     </ul>`;
   const hide = host.querySelector('#hide');
   const chips = host.querySelectorAll('.word-chip');
   hide.addEventListener('change', () => chips.forEach((c) => c.classList.toggle('covered', hide.checked)));
   chips.forEach((c) => c.addEventListener('click', () => { if (hide.checked) c.classList.toggle('covered'); }));
   host.querySelectorAll('[data-say]').forEach((b) => b.addEventListener('click', () => {
-    if (!speak(set.words[Number(b.dataset.say)])) toast('เครื่องนี้ไม่มีเสียงภาษาไทย ให้พ่อแม่อ่านให้ฟังแทนนะ');
+    if (!speak(wordSay(set.words[Number(b.dataset.say)]), cfg.lang)) toast(cfg.noVoice);
   }));
 }
 
-function startWrite(host, kidId, set) {
+function startWrite(host, kidId, set, kind = 'dict') {
+  const cfg = DICT_KINDS[kind];
   let queue = shuffle(set.words).map((w) => ({ w, wrong: false }));
   const total = queue.length;
   let firstTry = 0;
   let cleared = 0;
   const tricky = [];
-  const pad = createScratchpad({ title: 'เขียนคำที่ได้ยิน', hint: 'เขียนด้วยนิ้วหรือ Apple Pencil', height: 230 });
+  const pad = createScratchpad({ title: cfg.padTitle, hint: 'เขียนด้วยนิ้วหรือ Apple Pencil', height: 230 });
 
   host.innerHTML = `
     <div class="stage-top"><span id="count"></span><span id="score"></span></div>
@@ -393,7 +421,7 @@ function startWrite(host, kidId, set) {
 
   function say() {
     if (!queue.length) return;
-    if (!speak(queue[0].w)) toast('เครื่องนี้ไม่มีเสียงภาษาไทย ให้พ่อแม่อ่านคำให้ แล้วกด “ดูคำตอบ” เพื่อตรวจ');
+    if (!speak(wordSay(queue[0].w), cfg.lang)) toast(cfg.noVoice);
   }
 
   function show(autoSpeak) {
@@ -409,7 +437,7 @@ function startWrite(host, kidId, set) {
   }
 
   function finish() {
-    const key = `${kidId}.dict.${set.id}`;
+    const key = `${kidId}.${kind}.${set.id}`;
     const prev = getProgress(key);
     if (!prev || firstTry >= prev.firstTry) setProgress(key, { firstTry, total, at: Date.now() });
     const perfect = firstTry === total;
@@ -421,15 +449,16 @@ function startWrite(host, kidId, set) {
         ${tricky.length ? `<p>คำที่ควรฝึกอีกหน่อย:</p><ul class="tricky">${tricky.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}
         <div class="row center">
           <button type="button" id="again" class="btn btn-primary">ฝึกอีกรอบ</button>
-          <a class="btn" href="#/k/${kidId}/dict">กลับไปเลือกครั้งที่</a>
+          <a class="btn" href="#/k/${kidId}/${kind}">กลับไปเลือก${kind === 'edict' ? 'ชุด' : 'ครั้งที่'}</a>
         </div>
       </div>`;
-    host.querySelector('#again').addEventListener('click', () => startWrite(host, kidId, set));
+    host.querySelector('#again').addEventListener('click', () => startWrite(host, kidId, set, kind));
   }
 
   $('#listen').addEventListener('click', say);
   $('#reveal').addEventListener('click', () => {
-    answer.textContent = queue[0].w;
+    const w = queue[0].w;
+    answer.innerHTML = `${wordHTML(w)}${meaningHTML(w)}`;
     answer.classList.add('shown');
     $('#reveal').hidden = true;
     $('#verdict').hidden = false;
@@ -442,7 +471,7 @@ function startWrite(host, kidId, set) {
   });
   $('#no').addEventListener('click', () => {
     const cur = queue.shift();
-    if (!cur.wrong) tricky.push(cur.w);
+    if (!cur.wrong) tricky.push(wordText(cur.w));
     cur.wrong = true;
     queue.push(cur); // ให้ลองใหม่ตอนท้ายรอบ
     show(true);
@@ -714,7 +743,8 @@ function route() {
     if (!Auth.isUnlocked(kidId)) return renderPin(kidId); // ของใครของมัน: ต้องใส่รหัสก่อน
     if (!section) return renderKid(kidId);
     const has = (type) => (PRACTICE[kidId] || []).some((p) => p.type === type);
-    if (section === 'dict' && has('dict')) return item ? renderDictSet(kidId, item) : renderDictList(kidId);
+    if (section === 'dict' && has('dict')) return item ? renderDictSet(kidId, item, 'dict') : renderDictList(kidId, 'dict');
+    if (section === 'edict' && has('edict')) return item ? renderDictSet(kidId, item, 'edict') : renderDictList(kidId, 'edict');
     if (section === 'frac' && has('frac')) return item ? renderFracQuiz(kidId, item) : renderFracMenu(kidId);
     if (section === 'poem' && has('poem')) return item ? renderPoem(kidId, item) : renderPoemList(kidId);
     return renderKid(kidId);

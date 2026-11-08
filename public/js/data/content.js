@@ -56,6 +56,7 @@ export const PRACTICE = {
   ],
   beana: [
     { id: 'dict', type: 'dict', icon: '✍️', title: 'เขียนไทย ชุดที่ 1', desc: 'ฟังคำแล้วเขียน · 50 คำ · 5 ครั้ง' },
+    { id: 'edict', type: 'edict', icon: '🔤', title: 'Dictation อังกฤษ (ชุด 4–9)', desc: 'ฟังคำแล้วสะกดเขียน · 12 คำ · สอบ 13 พ.ย.' },
     { id: 'poem', type: 'poem', icon: '📜', title: 'ท่องอาขยาน', desc: 'สักวาดาวจระเข้ · ไก่แจ้' },
     { id: 'div', type: 'soon', icon: '➗', title: 'คณิต: การหาร', desc: 'รอเนื้อหาจากคุณพ่อ' },
   ],
@@ -88,6 +89,42 @@ export const DICTATION = {
       words: ['นักบวช', 'มรกต', 'แยกย้าย', 'ราชการ', 'รัชกาล', 'เล่ห์กล', 'เลื้อยคลาน', 'วัชพืช', 'วันเพ็ญ', 'วิหค'] },
     { id: 5, date: '2026-11-12', unit: 'ชุดที่ 1',
       words: ['ครองแครง', 'โครงงาน', 'ชั่วคราว', 'ทดแทน', 'ทหาร', 'ทำบุญ', 'พระราชทาน', 'พิรุธ', 'แพรวพราว', 'พลเมือง'] },
+  ],
+};
+
+// Dictation Book 2 (เขียนอังกฤษ) ชุดที่ 4–9 — สอบ ศ. 13 พ.ย. (ป.2) · tts = คำที่ให้เครื่องอ่าน (ถ้าต่างจากตัวสะกด)
+export const ENGLISH_DICTATION = {
+  beana: [
+    { id: 4, date: '2026-11-13', unit: 'Unit 9 · Food and drinks',
+      words: [
+        { w: 'lunch box', pos: '(n.)', pron: 'ลันช์-บอคซ์', th: 'กล่องอาหารกลางวัน' },
+        { w: 'sandwich', pos: '(n.)', pron: 'แซน-วิช', th: 'แซนด์วิช' },
+      ] },
+    { id: 5, date: '2026-11-13', unit: 'Unit 9 · Food and drinks',
+      words: [
+        { w: 'drink', pos: '(n.)', pron: 'ดริงค์', th: 'เครื่องดื่ม' },
+        { w: 'biscuit', pos: '(n.)', pron: 'บิซ-กิท', th: 'ขนมปังกรอบ' },
+      ] },
+    { id: 6, date: '2026-11-13', unit: 'Unit 9 · Food and drinks',
+      words: [
+        { w: 'grape', pos: '(n.)', pron: 'เกรพ', th: 'องุ่น' },
+        { w: 'pineapple', pos: '(n.)', pron: 'พาย-แนพ-เปิล', th: 'สับปะรด' },
+      ] },
+    { id: 7, date: '2026-11-13', unit: 'Unit 10 · Hair styles',
+      words: [
+        { w: 'long', pos: '(adj.)', pron: 'ลอง', th: 'ยาว' },
+        { w: 'short', pos: '(adj.)', pron: 'ชอรท', th: 'สั้น' },
+      ] },
+    { id: 8, date: '2026-11-13', unit: 'Unit 10 · Hair styles',
+      words: [
+        { w: 'blond/blonde', tts: 'blonde', pos: '(adj.)', pron: 'บล็อนด', th: '(ผม)สีเหลืองทอง' },
+        { w: 'brown', pos: '(adj.)', pron: 'บราวน์', th: 'สีน้ำตาล' },
+      ] },
+    { id: 9, date: '2026-11-13', unit: 'Unit 10 · Hair styles',
+      words: [
+        { w: 'curly', pos: '(adj.)', pron: 'เคอร์-ลิ', th: 'ผมหยิก' },
+        { w: 'straight', pos: '(adj.)', pron: 'สเตรท', th: '(ผม)ที่เป็นเส้นตรง' },
+      ] },
   ],
 };
 
