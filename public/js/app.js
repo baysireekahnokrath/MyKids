@@ -1,4 +1,6 @@
-import { KIDS, SCHEDULE, PRACTICE, DICTATION, ENGLISH_DICTATION, POEMS, FRACTION_WORKSHEETS } from './data/content.js';
+import {
+  KIDS, SCHEDULE, PRACTICE, DICTATION, ENGLISH_DICTATION, POEMS, FRACTION_WORKSHEETS, DIVISION_WORKSHEETS, WORD_PROBLEMS,
+} from './data/content.js';
 import {
   getProgress, setProgress, todayISO, thaiDate, thaiDateRange, countdown,
   speak, speakLines, stopSpeaking, shuffle, toast,
@@ -281,6 +283,16 @@ function practiceStatus(kidId, p) {
   if (p.type === 'frac') {
     const best = getProgress(`${kidId}.frac.ws9`);
     return best ? `ใบงานชุดที่ 9 ทำได้ดีที่สุด ${best.score}/${best.total}` : '';
+  }
+  if (p.type === 'div') {
+    const sheets = DIVISION_WORKSHEETS[kidId] || [];
+    const done = sheets.filter((w) => { const b = getProgress(`${kidId}.div.${w.id}`); return b && b.score === b.total; }).length;
+    return `ใบงานตอบถูกหมดแล้ว ${done}/${sheets.length} หน้า`;
+  }
+  if (p.type === 'wp') {
+    const sheets = WORD_PROBLEMS[kidId] || [];
+    const best = getProgress(`${kidId}.wp.${sheets[0]?.id}`);
+    return best ? `ถูกครั้งแรก ${best.score}/${best.total} ข้อ` : '';
   }
   return '';
 }
@@ -636,6 +648,305 @@ function renderFracQuiz(kidId, mode) {
   show();
 }
 
+// ---------- คณิตศาสตร์: การหาร (ป.2) ----------
+const randInt = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+
+function renderDivMenu(kidId) {
+  const kid = KIDS[kidId];
+  const ws = (DIVISION_WORKSHEETS[kidId] || []).map((w) => {
+    const best = getProgress(`${kidId}.div.${w.id}`);
+    return `
+      <a class="set-card" href="#/k/${kidId}/div/${w.id}">
+        <div class="set-num">📄</div>
+        <div class="set-main"><h3>${esc(w.title)}</h3><p>${esc(w.subtitle)}</p></div>
+        <span class="badge ${best && best.score === best.total ? 'badge-ok' : ''}">${best ? `ดีที่สุด ${best.score}/${best.total}` : 'ยังไม่ได้ทำ'}</span>
+      </a>`;
+  }).join('');
+  mount(`
+    <main class="wrap">
+      ${topbar(`#/k/${kidId}`, kid.name)}
+      <h1 class="page-title">➗ คณิต: การหาร <small>บทที่ 6 การหารลงตัว</small></h1>
+      <p class="lead">พิมพ์คำตอบด้วยแป้นตัวเลข มีที่ทดให้ใช้ ถ้าตอบผิดจะบอกวิธีคิดจากสูตรคูณ</p>
+      <div class="set-list">
+        ${ws}
+        <a class="set-card" href="#/k/${kidId}/div/random">
+          <div class="set-num">🎲</div>
+          <div class="set-main"><h3>สุ่มสูตรหาร</h3><p>ตัวหาร 2–9 · ผลหารถึง 12 · ฝึกได้เรื่อยๆ</p></div>
+          <span class="badge">ไม่จำกัด</span>
+        </a>
+      </div>
+    </main>`, kidId);
+}
+
+function renderDivQuiz(kidId, mode) {
+  const sheet = (DIVISION_WORKSHEETS[kidId] || []).find((w) => w.id === mode);
+  const random = mode === 'random';
+  if (!sheet && !random) { location.hash = `#/k/${kidId}/div`; return; }
+
+  let problems = random ? [] : sheet.items.map(([a, b], i) => ({ a, b, no: i + 1 }));
+  let index = 0;
+  let correct = 0;
+  let answered = 0;
+  let streak = 0;
+  let typed = '';
+  let checked = false;
+  const wrong = [];
+  const pad = createScratchpad({ title: 'ที่ทด', hint: 'วาดกลุ่ม ขีดแบ่ง หรือคิดเลขได้เลย', height: 200 });
+
+  mount(`
+    <main class="wrap">
+      ${topbar(`#/k/${kidId}/div`, 'การหาร')}
+      <h1 class="page-title">${random ? '🎲 สุ่มสูตรหาร' : esc(sheet.title)} <small>${random ? 'ฝึกได้ไม่จำกัด' : esc(sheet.subtitle)}</small></h1>
+      <div id="quiz"></div>
+    </main>`, kidId);
+  const quiz = document.getElementById('quiz');
+  const $ = (s) => quiz.querySelector(s);
+
+  function frame() {
+    quiz.innerHTML = `
+      <div class="stage-top"><span id="count"></span><span id="score"></span></div>
+      <div class="problem-card">
+        <div class="div-problem" role="group" aria-label="โจทย์"><span id="expr"></span><span class="ansbox" id="ansbox">?</span></div>
+        <div class="keypad quiz-keys" role="group" aria-label="แป้นตัวเลข">
+          ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button type="button" class="key" data-k="${n}">${n}</button>`).join('')}
+          <button type="button" class="key key-fn" data-k="back" aria-label="ลบ">⌫</button>
+          <button type="button" class="key" data-k="0">0</button>
+          <button type="button" class="key key-go" data-k="go" aria-label="ตรวจคำตอบ">ตรวจ ✓</button>
+        </div>
+        <div id="feedback" class="feedback" hidden></div>
+      </div>
+      <div id="padhost"></div>`;
+    $('#padhost').appendChild(pad.el);
+    $('.keypad').addEventListener('click', (e) => {
+      const b = e.target.closest('[data-k]');
+      if (b) press(b.dataset.k);
+    });
+  }
+
+  function scoreText() {
+    return random
+      ? `ถูก ${correct}/${answered}${streak >= 3 ? ` · 🔥 ติดกัน ${streak}` : ''}`
+      : `ถูก ${correct}/${answered}`;
+  }
+
+  function show() {
+    if (random) {
+      const b = randInt(2, 9);
+      const q = randInt(2, 12);
+      problems.push({ a: b * q, b, no: problems.length + 1 });
+    }
+    const cur = problems[index];
+    if (!cur) { finish(); return; }
+    pad.clear();
+    typed = '';
+    checked = false;
+    $('#count').textContent = random ? `ข้อที่ ${index + 1}` : `ข้อ ${index + 1} / ${problems.length}`;
+    $('#score').textContent = scoreText();
+    $('#expr').textContent = `${cur.a} ÷ ${cur.b} =`;
+    const box = $('#ansbox');
+    box.textContent = '?';
+    box.className = 'ansbox';
+    const fb = $('#feedback');
+    fb.hidden = true;
+    fb.innerHTML = '';
+  }
+
+  function check() {
+    if (checked || typed === '') return;
+    checked = true;
+    const cur = problems[index];
+    const truth = cur.a / cur.b;
+    const ok = Number(typed) === truth;
+    answered += 1;
+    if (ok) { correct += 1; streak += 1; } else { streak = 0; wrong.push(cur); }
+    const box = $('#ansbox');
+    box.textContent = ok ? typed : `${typed} → ${truth}`;
+    box.classList.add(ok ? 'ok' : 'no');
+    $('#score').textContent = scoreText();
+    const isLast = !random && index === problems.length - 1;
+    const fb = $('#feedback');
+    fb.hidden = false;
+    fb.className = `feedback ${ok ? 'is-ok' : 'is-no'}`;
+    fb.innerHTML = `
+      <h3>${ok ? '✅ ถูกต้อง!' : `❌ ยังไม่ใช่ — ${cur.a} ÷ ${cur.b} = ${truth}`}</h3>
+      <p class="why-line">คิดจากสูตรคูณ: ${cur.b} × ${truth} = ${cur.a} จึงได้ ${cur.a} ÷ ${cur.b} = ${truth}</p>
+      <div class="row">
+        <button type="button" id="next" class="btn btn-primary">${isLast ? 'ดูผลคะแนน' : 'ข้อต่อไป →'}</button>
+        ${random ? `<a class="btn" href="#/k/${kidId}/div">จบการฝึก</a>` : ''}
+      </div>`;
+    fb.querySelector('#next').addEventListener('click', next);
+    fb.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  function next() { index += 1; show(); }
+
+  function press(k) {
+    if (k === 'go') { if (checked) next(); else check(); return; }
+    if (checked) return;
+    if (k === 'back') typed = typed.slice(0, -1);
+    else if (typed.length < 3) typed += k;
+    const box = $('#ansbox');
+    box.textContent = typed === '' ? '?' : typed;
+  }
+
+  const onKey = (e) => {
+    if (e.target.closest?.('input, textarea')) return;
+    if (/^\d$/.test(e.key)) press(e.key);
+    else if (e.key === 'Backspace') press('back');
+    else if (e.key === 'Enter' && !e.target.closest?.('button, a')) press('go'); // ถ้าโฟกัสที่ปุ่ม ให้ปุ่มจัดการเอง กันข้ามข้อซ้ำ
+  };
+  window.addEventListener('keydown', onKey);
+  cleanup = () => window.removeEventListener('keydown', onKey);
+
+  function finish() {
+    const total = problems.length;
+    const key = `${kidId}.div.${mode}`;
+    const prev = getProgress(key);
+    if (!problems.retry && (!prev || correct > prev.score)) setProgress(key, { score: correct, total, at: Date.now() });
+    const perfect = wrong.length === 0;
+    quiz.innerHTML = `
+      <div class="result">
+        <div class="result-emoji">${perfect ? '🌟' : '👍'}</div>
+        <h2>${perfect ? 'เก่งมาก! ถูกทุกข้อ' : 'ทำเสร็จแล้ว!'}</h2>
+        <p class="big-score">ถูก ${correct} / ${answered} ข้อ</p>
+        ${wrong.length ? `<p>ข้อที่ควรดูอีกครั้ง:</p><ul class="tricky wrongs">${wrong.map((w) => `<li>${w.a} ÷ ${w.b} = <b>${w.a / w.b}</b></li>`).join('')}</ul>` : ''}
+        <div class="row center">
+          ${wrong.length ? '<button type="button" id="retry" class="btn btn-primary">ทำข้อที่ผิดอีกครั้ง</button>' : ''}
+          <button type="button" id="restart" class="btn ${wrong.length ? '' : 'btn-primary'}">ทำใหม่ทั้งชุด</button>
+          <a class="btn" href="#/k/${kidId}/div">กลับ</a>
+        </div>
+      </div>`;
+    quiz.querySelector('#restart').addEventListener('click', () => renderDivQuiz(kidId, mode));
+    quiz.querySelector('#retry')?.addEventListener('click', () => {
+      problems = wrong.splice(0).map((w, i) => ({ a: w.a, b: w.b, no: i + 1 }));
+      problems.retry = true;
+      index = 0; correct = 0; answered = 0; streak = 0;
+      frame();
+      show();
+    });
+  }
+
+  frame();
+  show();
+}
+
+// ---------- คณิตศาสตร์: โจทย์ปัญหาเศษส่วน (ป.4) ----------
+// {1/2} หรือ {6 1/4} ในข้อความ → เศษส่วนแนวตั้ง
+const fracText = (text) => esc(text).replace(/\{(?:(\d+) )?(\d+)\/(\d+)\}/g, (_, w, n, d) => Fr.numHTML({ w: Number(w || 0), n: Number(n), d: Number(d) }));
+
+function renderWpMenu(kidId) {
+  const kid = KIDS[kidId];
+  const ws = (WORD_PROBLEMS[kidId] || []).map((w) => {
+    const best = getProgress(`${kidId}.wp.${w.id}`);
+    return `
+      <a class="set-card" href="#/k/${kidId}/wp/${w.id}">
+        <div class="set-num">🧮</div>
+        <div class="set-main"><h3>${esc(w.title)}</h3><p>${esc(w.subtitle)}</p></div>
+        <span class="badge ${best && best.score === best.total ? 'badge-ok' : ''}">${best ? `ถูกครั้งแรก ${best.score}/${best.total}` : 'ยังไม่ได้ทำ'}</span>
+      </a>`;
+  }).join('');
+  mount(`
+    <main class="wrap">
+      ${topbar(`#/k/${kidId}`, kid.name)}
+      <h1 class="page-title">🧮 โจทย์ปัญหาเศษส่วน <small>บทที่ 6 บวก ลบ เศษส่วนและจำนวนคละ</small></h1>
+      <p class="lead">อ่านโจทย์ → เขียนแนวคิดและหาคำตอบในที่ทด → กดดูเฉลยและวิธีทำ → ตรวจเอง</p>
+      <div class="set-list">${ws}</div>
+    </main>`, kidId);
+}
+
+function renderWpQuiz(kidId, id) {
+  const sheet = (WORD_PROBLEMS[kidId] || []).find((w) => w.id === id);
+  if (!sheet) { location.hash = `#/k/${kidId}/wp`; return; }
+  const total = sheet.items.length;
+  let queue = sheet.items.map((it, i) => ({ it, no: i + 1, wrong: false }));
+  let firstTry = 0;
+  let cleared = 0;
+  const tricky = [];
+  const pad = createScratchpad({ title: 'แนวคิดและคำตอบ', hint: 'เขียนประโยคสัญลักษณ์และวิธีทำด้วยนิ้วหรือ Apple Pencil', height: 280 });
+
+  mount(`
+    <main class="wrap">
+      ${topbar(`#/k/${kidId}/wp`, 'โจทย์ปัญหา')}
+      <h1 class="page-title">${esc(sheet.title)} <small>${esc(sheet.subtitle)}</small></h1>
+      <div id="quiz"></div>
+    </main>`, kidId);
+  const quiz = document.getElementById('quiz');
+  const $ = (s) => quiz.querySelector(s);
+
+  quiz.innerHTML = `
+    <div class="stage-top"><span id="count"></span><span id="score"></span></div>
+    <div class="problem-card wp">
+      <p class="wp-q" id="wpq"></p>
+      <div class="row center"><button type="button" id="reveal" class="btn btn-big">👁 ดูเฉลยและวิธีทำ</button></div>
+      <div id="solution" class="solution" hidden>
+        <p class="sentence">ประโยคสัญลักษณ์: <b id="sentence"></b></p>
+        <ol class="why" id="steps"></ol>
+        <p class="final" id="final"></p>
+        <div class="verdict">
+          <button type="button" id="ok" class="btn btn-ok">ทำถูก ✅</button>
+          <button type="button" id="no" class="btn btn-no">ยังไม่ถูก ❌</button>
+        </div>
+      </div>
+    </div>
+    <div id="padhost"></div>`;
+  $('#padhost').appendChild(pad.el);
+
+  function show() {
+    if (!queue.length) { finish(); return; }
+    const cur = queue[0];
+    pad.clear();
+    $('#count').textContent = `ข้อ ${cur.no} · ทำแล้ว ${cleared} / ${total}`;
+    $('#score').textContent = `ถูกครั้งแรก ${firstTry}`;
+    $('#wpq').innerHTML = `<b class="qno">${cur.no}.</b> ${fracText(cur.it.q)}`;
+    $('#solution').hidden = true;
+    $('#reveal').hidden = false;
+  }
+
+  function finish() {
+    const key = `${kidId}.wp.${id}`;
+    const prev = getProgress(key);
+    if (!prev || firstTry >= prev.score) setProgress(key, { score: firstTry, total, at: Date.now() });
+    const perfect = firstTry === total;
+    quiz.innerHTML = `
+      <div class="result">
+        <div class="result-emoji">${perfect ? '🌟' : '👍'}</div>
+        <h2>${perfect ? 'เก่งมาก! ถูกทุกข้อ' : 'ทำได้ดีมาก!'}</h2>
+        <p class="big-score">ถูกตั้งแต่ครั้งแรก ${firstTry} / ${total} ข้อ</p>
+        ${tricky.length ? `<p>ข้อที่ควรดูอีกครั้ง:</p><ul class="tricky wrongs">${tricky.map((n) => `<li>ข้อ ${n}</li>`).join('')}</ul>` : ''}
+        <div class="row center">
+          <button type="button" id="again" class="btn btn-primary">ทำใหม่ทั้งชุด</button>
+          <a class="btn" href="#/k/${kidId}/wp">กลับ</a>
+        </div>
+      </div>`;
+    quiz.querySelector('#again').addEventListener('click', () => renderWpQuiz(kidId, id));
+  }
+
+  $('#reveal').addEventListener('click', () => {
+    const { it } = queue[0];
+    $('#sentence').textContent = it.sentence;
+    $('#steps').innerHTML = it.steps.map((s) => `<li>${esc(s)}</li>`).join('');
+    $('#final').textContent = `ตอบ ${it.answer}`;
+    $('#solution').hidden = false;
+    $('#reveal').hidden = true;
+    $('#solution').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  });
+  $('#ok').addEventListener('click', () => {
+    const cur = queue.shift();
+    cleared += 1;
+    if (!cur.wrong) firstTry += 1;
+    show();
+  });
+  $('#no').addEventListener('click', () => {
+    const cur = queue.shift();
+    if (!cur.wrong) tricky.push(cur.no);
+    cur.wrong = true;
+    queue.push(cur); // ให้ลองใหม่ตอนท้ายรอบ
+    show();
+  });
+
+  show();
+}
+
 // ---------- อาขยาน ----------
 function firstWord(line) {
   try {
@@ -746,6 +1057,8 @@ function route() {
     if (section === 'dict' && has('dict')) return item ? renderDictSet(kidId, item, 'dict') : renderDictList(kidId, 'dict');
     if (section === 'edict' && has('edict')) return item ? renderDictSet(kidId, item, 'edict') : renderDictList(kidId, 'edict');
     if (section === 'frac' && has('frac')) return item ? renderFracQuiz(kidId, item) : renderFracMenu(kidId);
+    if (section === 'div' && has('div')) return item ? renderDivQuiz(kidId, item) : renderDivMenu(kidId);
+    if (section === 'wp' && has('wp')) return item ? renderWpQuiz(kidId, item) : renderWpMenu(kidId);
     if (section === 'poem' && has('poem')) return item ? renderPoem(kidId, item) : renderPoemList(kidId);
     return renderKid(kidId);
   }

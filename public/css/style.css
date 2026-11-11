@@ -282,6 +282,27 @@ html[data-style='blob'] .pad-bar { border-bottom: 0; }
   background-size: 100% 40px; cursor: crosshair;
 }
 
+
+/* ---------- การหาร / โจทย์ปัญหา ---------- */
+.div-problem { display: flex; align-items: center; justify-content: center; gap: 18px; font-family: var(--head); font-size: 58px; font-weight: 600; padding: 10px 0 16px; flex-wrap: wrap; }
+.ansbox {
+  min-width: 130px; height: 88px; padding: 0 16px; display: grid; place-items: center; border-radius: calc(var(--r) * 0.6);
+  border: 4px dashed var(--ink); background: var(--c2); font-size: 52px;
+}
+.ansbox.ok { border-style: solid; border-color: var(--ok); color: var(--ok); background: var(--ok-soft); }
+.ansbox.no { border-style: solid; border-color: var(--bad); color: var(--bad); background: var(--bad-soft); font-size: 34px; }
+.quiz-keys { margin: 6px auto 14px; }
+.key-go { background: var(--c); font-size: 22px; }
+.why-line { margin: 4px 0 10px; font-size: 17px; }
+.wp-q { text-align: left; font-size: 22px; line-height: 2; margin: 4px 4px 16px; }
+.wp-q .qno { font-family: var(--head); color: var(--deep); margin-right: 4px; }
+.wp-q .num { font-family: var(--head); font-weight: 600; margin: 0 4px; vertical-align: middle; }
+.wp-q .frac { font-size: 0.8em; }
+.wp-q .fn { border-bottom-width: 2px; }
+.solution { text-align: left; margin-top: 8px; padding: 14px 18px; border-radius: calc(var(--r) * 0.7); background: var(--soft); }
+.solution .sentence { font-size: 19px; }
+.solution .final { font-family: var(--head); font-size: 24px; font-weight: 600; margin: 6px 0 10px; color: var(--deep); }
+
 /* ---------- ใส่รหัส ---------- */
 .pin-card { max-width: 460px; margin: 18px auto 0; padding: 26px 22px 20px; text-align: center; background: var(--soft); }
 .pin-card .avatar { margin: 0 auto 6px; }
