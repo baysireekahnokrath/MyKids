@@ -269,11 +269,15 @@ function renderKid(kidId) {
 }
 
 function practiceStatus(kidId, p) {
-  if (p.type === 'dict' || p.type === 'edict') {
-    const data = p.type === 'dict' ? DICTATION : ENGLISH_DICTATION;
-    const sets = data[kidId] || [];
-    const done = sets.filter((s) => getProgress(`${kidId}.${p.type}.${s.id}`)?.firstTry === s.words.length).length;
-    return `ถูกหมดทุกคำแล้ว ${done}/${sets.length} ${p.type === 'dict' ? 'ครั้ง' : 'ชุด'}`;
+  if (p.type === 'dict') {
+    const sets = DICTATION[kidId] || [];
+    const done = sets.filter((s) => getProgress(`${kidId}.dict.${s.id}`)?.firstTry === s.words.length).length;
+    return `ถูกหมดทุกคำแล้ว ${done}/${sets.length} ครั้ง`;
+  }
+  if (p.type === 'edict') {
+    const exam = (ENGLISH_DICTATION[kidId] || []).filter((s) => s.exam && s.id !== 'mock');
+    const done = exam.filter((s) => getProgress(`${kidId}.edict.${s.id}`)?.firstTry === s.words.length).length;
+    return `ชุดสอบ 13 พ.ย. (4–9) ถูกหมดแล้ว ${done}/${exam.length} ชุด`;
   }
   if (p.type === 'poem') {
     const poems = POEMS[kidId] || [];
@@ -306,8 +310,8 @@ const DICT_KINDS = {
     padTitle: 'เขียนคำที่ได้ยิน',
   },
   edict: {
-    data: ENGLISH_DICTATION, lang: 'en', crumb: 'Dictation', title: '🔤 Dictation อังกฤษ (ชุด 4–9)', label: (s) => `ชุดที่ ${s.id}`,
-    lead: 'ฟังคำภาษาอังกฤษแล้วสะกดเขียน — สอบวันศุกร์ที่ 13 พ.ย. กดดูคำตอบเพื่อตรวจการสะกด',
+    data: ENGLISH_DICTATION, lang: 'en', crumb: 'Dictation', title: '🔤 Dictation อังกฤษ Book 2', label: (s) => s.title || `ชุดที่ ${s.id}`,
+    lead: 'ฟังคำภาษาอังกฤษแล้วสะกดเขียน — สอบวันศุกร์ที่ 13 พ.ย. คือชุด 4–9 (กด "ซ้อมสอบ" เพื่อฝึกครบ 12 คำรวดเดียว)',
     noVoice: 'เครื่องนี้ไม่มีเสียงภาษาอังกฤษ ให้พ่อแม่อ่านคำให้ แล้วกด “ดูคำตอบ” เพื่อตรวจ',
     padTitle: 'เขียนคำที่ได้ยิน (สะกดให้ถูก)',
   },
@@ -323,31 +327,53 @@ function renderDictList(kidId, kind = 'dict') {
   const kid = KIDS[kidId];
   const cfg = DICT_KINDS[kind];
   const sets = cfg.data[kidId] || [];
-  const items = sets.map((s) => {
+  const today = todayISO();
+
+  const card = (s) => {
     const pr = getProgress(`${kidId}.${kind}.${s.id}`);
-    const cd = countdown({ date: s.date }, todayISO());
-    const when = kind === 'edict'
-      ? (cd.state === 'past' ? 'สอบผ่านไปแล้ว' : `สอบ ${thaiDate(s.date)} · ${cd.text}`)
-      : `${thaiDate(s.date)} · ${cd.state === 'past' ? 'ผ่านไปแล้ว' : cd.text}`;
+    const examDate = kind === 'edict' ? s.exam : s.date;
+    const cd = examDate ? countdown({ date: examDate }, today) : null;
+    let when = '';
+    if (cd) {
+      if (kind === 'edict') when = cd.state === 'past' ? 'สอบผ่านไปแล้ว' : `สอบ ${thaiDate(examDate)} · ${cd.text}`;
+      else when = `${thaiDate(examDate)} · ${cd.state === 'past' ? 'ผ่านไปแล้ว' : cd.text}`;
+    }
     const status = pr
       ? `<span class="badge ${pr.firstTry === s.words.length ? 'badge-ok' : 'badge-mid'}">ถูกครั้งแรก ${pr.firstTry}/${pr.total}</span>`
       : '<span class="badge">ยังไม่ได้ฝึก</span>';
+    const preview = kind === 'edict' && s.id !== 'mock' ? s.words.map(wordText).join(' · ') : `${esc(s.unit)} · ${s.words.length} คำ`;
     return `
       <a class="set-card" href="#/k/${kidId}/${kind}/${s.id}">
-        <div class="set-num">${s.id}</div>
+        <div class="set-num">${s.id === 'mock' ? '📝' : s.id}</div>
         <div class="set-main">
-          <h3>${cfg.label(s)} <small>${when}</small></h3>
-          <p>${esc(s.unit)} · ${s.words.length} คำ</p>
+          <h3>${esc(cfg.label(s))} ${when ? `<small>${when}</small>` : ''}</h3>
+          <p>${preview}</p>
         </div>
         ${status}
       </a>`;
-  }).join('');
+  };
+
+  let body;
+  if (kind === 'edict') {
+    // จัดกลุ่มตาม Unit
+    const groups = [];
+    sets.forEach((s) => {
+      const last = groups[groups.length - 1];
+      if (last && last.unit === s.unit) last.items.push(s); else groups.push({ unit: s.unit, items: [s] });
+    });
+    body = groups.map((g) => `
+      <h2 class="section-title">${esc(g.unit)}</h2>
+      <div class="set-list grid">${g.items.map(card).join('')}</div>`).join('');
+  } else {
+    body = `<div class="set-list">${sets.map(card).join('')}</div>`;
+  }
+
   mount(`
     <main class="wrap">
       ${topbar(`#/k/${kidId}`, kid.name)}
       <h1 class="page-title">${cfg.title}</h1>
       <p class="lead">${cfg.lead}</p>
-      <div class="set-list">${items}</div>
+      ${body}
     </main>`, kidId);
 }
 

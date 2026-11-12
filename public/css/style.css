@@ -157,6 +157,7 @@ details.past summary { cursor: pointer; color: var(--muted); padding: 10px 0; mi
 
 /* ---------- รายการชุดฝึก ---------- */
 .set-list { display: grid; gap: 16px; }
+.set-list.grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 .set-card { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; padding: 16px 20px; min-height: 90px; transition: transform 0.12s; }
 .set-card:active { transform: translate(3px, 3px); box-shadow: var(--sh-press); }
 .set-num { width: 58px; height: 58px; border-radius: calc(var(--r) * 0.55); background: var(--c); display: grid; place-items: center; font-family: var(--head); font-size: 26px; font-weight: 800; }
