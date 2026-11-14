@@ -1,5 +1,5 @@
 import {
-  KIDS, SCHEDULE, PRACTICE, DICTATION, ENGLISH_DICTATION, POEMS, FRACTION_WORKSHEETS, DIVISION_WORKSHEETS, WORD_PROBLEMS,
+  KIDS, SCHEDULE, PRACTICE, DICTATION, ENGLISH_DICTATION, ENGLISH_INFO, POEMS, FRACTION_WORKSHEETS, DIVISION_WORKSHEETS, WORD_PROBLEMS,
 } from './data/content.js';
 import {
   getProgress, setProgress, todayISO, thaiDate, thaiDateRange, countdown,
@@ -277,7 +277,7 @@ function practiceStatus(kidId, p) {
   if (p.type === 'edict') {
     const exam = (ENGLISH_DICTATION[kidId] || []).filter((s) => s.exam && s.id !== 'mock');
     const done = exam.filter((s) => getProgress(`${kidId}.edict.${s.id}`)?.firstTry === s.words.length).length;
-    return `ชุดสอบ 13 พ.ย. (4–9) ถูกหมดแล้ว ${done}/${exam.length} ชุด`;
+    return `ชุดสอบ ${ENGLISH_INFO[kidId]?.examLabel ?? ''} ถูกหมดแล้ว ${done}/${exam.length} ชุด`;
   }
   if (p.type === 'poem') {
     const poems = POEMS[kidId] || [];
@@ -371,8 +371,8 @@ function renderDictList(kidId, kind = 'dict') {
   mount(`
     <main class="wrap">
       ${topbar(`#/k/${kidId}`, kid.name)}
-      <h1 class="page-title">${cfg.title}</h1>
-      <p class="lead">${cfg.lead}</p>
+      <h1 class="page-title">${kind === 'edict' && ENGLISH_INFO[kidId] ? `🔤 ${ENGLISH_INFO[kidId].title}` : cfg.title}</h1>
+      <p class="lead">${kind === 'edict' && ENGLISH_INFO[kidId] ? ENGLISH_INFO[kidId].lead : cfg.lead}</p>
       ${body}
     </main>`, kidId);
 }
