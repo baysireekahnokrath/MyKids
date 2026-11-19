@@ -41,6 +41,7 @@ const topbar = (backHref, backLabel, actions = '') => `
 function upcoming(kidId) {
   const today = todayISO();
   return (SCHEDULE[kidId] || [])
+    .slice().sort((a, b) => a.date.localeCompare(b.date))
     .map((item) => ({ ...item, cd: countdown(item, today) }))
     .filter((item) => item.cd.state !== 'past');
 }
@@ -213,7 +214,7 @@ function renderPin(kidId) {
 // ---------- หน้าของลูกแต่ละคน ----------
 function renderKid(kidId) {
   const kid = KIDS[kidId];
-  const all = SCHEDULE[kidId] || [];
+  const all = (SCHEDULE[kidId] || []).slice().sort((a, b) => a.date.localeCompare(b.date));
   const today = todayISO();
   const rows = all.map((item) => ({ ...item, cd: countdown(item, today) }));
   const coming = rows.filter((r) => r.cd.state !== 'past');
@@ -304,7 +305,7 @@ function practiceStatus(kidId, p) {
 // ---------- เขียนไทย / Dictation อังกฤษ (ฟังคำแล้วเขียน) ----------
 const DICT_KINDS = {
   dict: {
-    data: DICTATION, lang: 'th', crumb: 'เขียนไทย', title: '✍️ เขียนไทย ชุดที่ 1', label: (s) => `ครั้งที่ ${s.id}`,
+    data: DICTATION, lang: 'th', crumb: 'เขียนไทย', title: '✍️ เขียนไทย', label: (s) => `ครั้งที่ ${s.n ?? s.id}`,
     lead: 'เลือกครั้งที่จะฝึก — ฟังคำแล้วเขียนลงในช่องเขียน จากนั้นกดดูคำตอบเพื่อตรวจ',
     noVoice: 'เครื่องนี้ไม่มีเสียงภาษาไทย ให้พ่อแม่อ่านคำให้ แล้วกด “ดูคำตอบ” เพื่อตรวจ',
     padTitle: 'เขียนคำที่ได้ยิน',
@@ -365,7 +366,12 @@ function renderDictList(kidId, kind = 'dict') {
       <h2 class="section-title">${esc(g.unit)}</h2>
       <div class="set-list grid">${g.items.map(card).join('')}</div>`).join('');
   } else {
-    body = `<div class="set-list">${sets.map(card).join('')}</div>`;
+    // เขียนไทยแบ่งเป็น "ชุดที่ 1 / ชุดที่ 2" (ถ้ามีมากกว่าหนึ่งชุด จะมีหัวข้อกำกับ)
+    const bySet = new Map();
+    sets.forEach((s) => { const k = s.set ?? 1; bySet.set(k, [...(bySet.get(k) || []), s]); });
+    body = [...bySet.entries()].map(([k, items]) => `
+      ${bySet.size > 1 ? `<h2 class="section-title">ชุดที่ ${k}</h2>` : ''}
+      <div class="set-list grid">${items.map(card).join('')}</div>`).join('');
   }
 
   mount(`
