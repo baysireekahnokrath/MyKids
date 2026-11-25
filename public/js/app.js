@@ -276,7 +276,8 @@ function practiceStatus(kidId, p) {
     return `ถูกหมดทุกคำแล้ว ${done}/${sets.length} ครั้ง`;
   }
   if (p.type === 'edict') {
-    const exam = (ENGLISH_DICTATION[kidId] || []).filter((s) => s.exam && s.id !== 'mock');
+    const next = ENGLISH_INFO[kidId]?.exam;
+    const exam = (ENGLISH_DICTATION[kidId] || []).filter((s) => s.exam && !s.mock && (!next || s.exam === next));
     const done = exam.filter((s) => getProgress(`${kidId}.edict.${s.id}`)?.firstTry === s.words.length).length;
     return `ชุดสอบ ${ENGLISH_INFO[kidId]?.examLabel ?? ''} ถูกหมดแล้ว ${done}/${exam.length} ชุด`;
   }
@@ -342,10 +343,10 @@ function renderDictList(kidId, kind = 'dict') {
     const status = pr
       ? `<span class="badge ${pr.firstTry === s.words.length ? 'badge-ok' : 'badge-mid'}">ถูกครั้งแรก ${pr.firstTry}/${pr.total}</span>`
       : '<span class="badge">ยังไม่ได้ฝึก</span>';
-    const preview = kind === 'edict' && s.id !== 'mock' ? s.words.map(wordText).join(' · ') : `${esc(s.unit)} · ${s.words.length} คำ`;
+    const preview = kind === 'edict' && !s.mock ? s.words.map(wordText).join(' · ') : `${esc(s.unit)} · ${s.words.length} คำ`;
     return `
       <a class="set-card" href="#/k/${kidId}/${kind}/${s.id}">
-        <div class="set-num">${s.id === 'mock' ? '📝' : s.id}</div>
+        <div class="set-num">${s.mock ? '📝' : s.id}</div>
         <div class="set-main">
           <h3>${esc(cfg.label(s))} ${when ? `<small>${when}</small>` : ''}</h3>
           <p>${preview}</p>
